@@ -1,5 +1,6 @@
 package com.pruebatecnica.pruebatecnica.service;
 
+import com.pruebatecnica.pruebatecnica.dto.ClienteInfoDto;
 import com.pruebatecnica.pruebatecnica.dto.NotificacionDto;
 import com.pruebatecnica.pruebatecnica.model.Cliente;
 import com.pruebatecnica.pruebatecnica.model.Fondo;
@@ -21,49 +22,87 @@ public class ClienteService {
 
     private final NotificacionService notificacionService;
 
+    private static final Double SALDO_INICIAL = 500000.0;
+
     @Autowired
     public ClienteService(ClienteRepository clienteRepository,
-                          FondoService fondoService,NotificacionService notificacionService) {
+                          FondoService fondoService, NotificacionService notificacionService) {
         this.clienteRepository = clienteRepository;
         this.fondoService = fondoService;
         this.notificacionService = notificacionService;
     }
 
-    // Método para crear o actualizar un cliente
+
+    public ClienteInfoDto getClienteInfo(String clienteId) {
+        Cliente cliente = getCliente(clienteId);
+        if (cliente == null) {
+            throw new RuntimeException("Cliente no encontrado");
+        }
+
+
+        Double saldoInvertido = calcularSaldoInvertido(cliente.getTransacciones());
+
+
+        Double saldoRestante =  SALDO_INICIAL - saldoInvertido;
+
+
+        return new ClienteInfoDto(
+                cliente.getClienteId(),
+                cliente.getNombre(),
+                SALDO_INICIAL,
+                saldoInvertido,
+                saldoRestante
+        );
+    }
+
+
     public Cliente save(Cliente cliente) {
         if (clienteYaExiste(cliente.getClienteId())) {
             throw new IllegalArgumentException("El cliente con ID " + cliente.getClienteId() + " ya existe.");
         }
 
-        // Asignar saldo inicial si el cliente es nuevo
+
         if (cliente.getSaldo() == 0) {
-            cliente.setSaldo(500000.0); // Saldo inicial
+            cliente.setSaldo(500000.0);
         }
 
         return clienteRepository.save(cliente);
     }
 
-    // Método para verificar si el cliente ya existe
+
     private boolean clienteYaExiste(String clienteId) {
         return clienteRepository.existsById(clienteId);
     }
 
-    // Método para obtener un cliente por ID
+
     public Cliente getCliente(String clienteId) {
         return clienteRepository.findById(clienteId).orElse(null);
     }
 
-    // Método para eliminar un cliente
+
+    private Double calcularSaldoInvertido(List<Transaccion> transacciones) {
+        if (transacciones == null) {
+            return 0.0;
+        }
+
+        return transacciones.stream()
+                .filter(t -> "Apertura".equals(t.getTipo()))
+                .mapToDouble(Transaccion::getMonto)
+                .sum();
+    }
+
+
     public void deleteCliente(String clienteId) {
         clienteRepository.deleteById(clienteId);
     }
 
-    // Método para obtener todos los clientes
+
     public Iterable<Cliente> getAllClientes() {
         return clienteRepository.findAll();
     }
 
-    // Método para agregar una transacción a un cliente
+
+
     public void addTransaccionToCliente(String clienteId, Transaccion transaccion) {
         Cliente cliente = getCliente(clienteId);
         if (cliente != null) {
@@ -71,13 +110,13 @@ public class ClienteService {
                 cliente.setTransacciones(new ArrayList<>());
             }
             cliente.getTransacciones().add(transaccion);
-            save(cliente);  // Utiliza el método save para actualizar
+            save(cliente);
         } else {
             throw new RuntimeException("Cliente no encontrado");
         }
     }
 
-    // Método para obtener todas las transacciones de un cliente
+
     public List<Transaccion> getTransaccionesDeCliente(String clienteId) {
         Cliente cliente = getCliente(clienteId);
         if (cliente != null) {
@@ -87,99 +126,108 @@ public class ClienteService {
         }
     }
 
-    // Método para suscribirse a un fondo
-    public void subscribeToFondo(String clienteId, Integer fondoId, Integer tipoNotificacion) {
-        // Verificar si el cliente existe en la base de datos
+
+    public void subscribeToFondo(String clienteId, Integer fondoId, Integer tipoNotificacion, Double valor, String correo, String celular) {
+
         if (!clienteYaExiste(clienteId)) {
             throw new RuntimeException("Cliente no encontrado");
         }
 
-        // Obtener el cliente
+
         Cliente cliente = getCliente(clienteId);
 
-        // Obtener el fondo
+
         Fondo fondo = fondoService.getFondo(fondoId);
         if (fondo == null) {
             throw new RuntimeException("Fondo no encontrado");
         }
 
-        // Verificar si el cliente ya está inscrito en el fondo
+
         if (isClienteInscritoEnFondo(cliente, fondoId)) {
             throw new RuntimeException("El cliente ya está inscrito en el fondo " + fondo.getNombre());
         }
 
-        // Verificar si el saldo es suficiente
-        if (cliente.getSaldo() < fondo.getMontoMinimo()) {
-            throw new RuntimeException("No tiene saldo disponible para vincularse al fondo " + fondo.getNombre());
+
+        if (valor == null || valor < fondo.getMontoMinimo() || valor > 500000.0) {
+            throw new RuntimeException("El monto debe estar entre " + fondo.getMontoMinimo() + " y 500000.0");
         }
 
-        // Crear la transacción
-        Transaccion transaccion = crearTransaccion(clienteId, fondoId, fondo.getMontoMinimo(), "Apertura",
-                fondo.getNombre());
 
-        // Inicializar la lista de transacciones si es null
+        if (cliente.getSaldo() < valor) {
+            throw new RuntimeException("No tiene saldo disponible para vincularse al fondo " + fondo.getNombre() + " con el monto proporcionado.");
+        }
+
+
+        Transaccion transaccion = crearTransaccion(clienteId, fondoId, valor, "Apertura", fondo.getNombre());
+
+
         if (cliente.getTransacciones() == null) {
             cliente.setTransacciones(new ArrayList<>());
         }
 
-        // Agregar la transacción al cliente
+
         cliente.getTransacciones().add(transaccion);
 
-        // Actualizar el saldo del cliente
-        cliente.setSaldo(cliente.getSaldo() - fondo.getMontoMinimo());
 
-        // Guardar el cliente actualizado en la base de datos
+        cliente.setSaldo(cliente.getSaldo() - valor);
+
         clienteRepository.save(cliente);
 
-        // Preparar la notificación
-        NotificacionDto notificacion = new NotificacionDto(clienteId, "Suscripción exitosa al fondo "
-                + fondo.getNombre(), tipoNotificacion);
 
-        // Enviar la notificación
-        notificacionService.enviarNotificacion(notificacion);
+        NotificacionDto notificacion = new NotificacionDto(clienteId, "Suscripción exitosa al fondo " + fondo.getNombre(), tipoNotificacion);
+
+
+        notificacionService.enviarNotificacion(notificacion, correo, celular);
     }
 
-    // Método para cancelar la suscripción a un fondo
+
     public void cancelarSuscripcion(String clienteId, Integer fondoId) {
-        // Verificar si el cliente existe
+
         if (!clienteYaExiste(clienteId)) {
             throw new RuntimeException("Cliente no encontrado");
         }
 
-        // Obtener el cliente
+
         Cliente cliente = getCliente(clienteId);
 
-        // Verificar si el cliente tiene una transacción de apertura para el fondo
+
+        Fondo fondo = fondoService.getFondo(fondoId);
+        if (fondo == null) {
+            throw new RuntimeException("Fondo no encontrado con ID: " + fondoId);
+        }
+
+
         Transaccion transaccion = cliente.getTransacciones().stream()
                 .filter(t -> t.getFondoId().equals(fondoId) && "Apertura".equals(t.getTipo()))
                 .findFirst()
                 .orElseThrow(() ->
                         new RuntimeException("No hay suscripción activa para el fondo " + fondoId));
 
-        // Retornar el monto de vinculación al cliente
+
         cliente.setSaldo(cliente.getSaldo() + transaccion.getMonto());
 
-        // Cambiar el estado de la transacción a "Cancelación"
+
+
         transaccion.setTipo("Cancelación");
         transaccion.setEstado("éxito");
-        transaccion.setMensaje("Cancelación exitosa de la suscripción al fondo " + fondoId);
+        transaccion.setMensaje("Cancelación exitosa de la suscripción al fondo " + fondo.getNombre());
 
-        // Guardar el cliente actualizado en la base de datos
+
         clienteRepository.save(cliente);
     }
 
-    // Método para verificar si el cliente ya está inscrito en un fondo
+
     private boolean isClienteInscritoEnFondo(Cliente cliente, Integer fondoId) {
         return cliente.getTransacciones() != null &&
                 cliente.getTransacciones().stream().anyMatch(t -> t.getFondoId().equals(fondoId) &&
                         "Apertura".equals(t.getTipo()));
     }
 
-    // Método para crear una transacción
+
     private Transaccion crearTransaccion(String clienteId, int fondoId, double monto, String tipo, String nombreFondo) {
         Transaccion transaccion = new Transaccion();
-        transaccion.setTransaccionId(UUID.randomUUID().toString()); // Generar ID único
-        transaccion.setClienteId(clienteId); // Asignar el ID del cliente
+        transaccion.setTransaccionId(UUID.randomUUID().toString());
+        transaccion.setClienteId(clienteId);
         transaccion.setFondoId(fondoId);
         transaccion.setTipo(tipo);
         transaccion.setMonto(monto);
@@ -188,7 +236,5 @@ public class ClienteService {
         transaccion.setMensaje("Suscripción exitosa a " + nombreFondo);
         return transaccion;
     }
-
-
 
 }
