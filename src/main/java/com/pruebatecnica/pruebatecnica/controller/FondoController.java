@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
+@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:8080","http://amaris-front.s3-website-us-east-1.amazonaws.com"})
 @RequestMapping("/fondos")
 public class FondoController {
     private final FondoService fondoService;
@@ -19,36 +20,36 @@ public class FondoController {
         this.fondoService = fondoService;
     }
 
-    // Crear o actualizar un fondo
+
     @PostMapping
     public ResponseEntity<Fondo> createFondo(@RequestBody Fondo fondo) {
         Fondo createdFondo = fondoService.save(fondo);
         return ResponseEntity.ok(createdFondo);
     }
 
-    // Obtener un fondo por ID
+
     @GetMapping("/{fondoId}")
     public ResponseEntity<Fondo> getFondo(@PathVariable Integer fondoId) {
         Fondo fondo = fondoService.getFondo(fondoId);
         return ResponseEntity.ok(fondo);
     }
 
-    // Obtener todos los fondos
+
     @GetMapping
     public ResponseEntity<List<Fondo>> getAllFondos() {
         Iterable<Fondo> fondos = fondoService.getAllFondos();
         return ResponseEntity.ok((List<Fondo>) fondos);
     }
 
-    // Actualizar un fondo
+
     @PutMapping("/{fondoId}")
     public ResponseEntity<Fondo> updateFondo(@PathVariable Integer fondoId, @RequestBody Fondo fondo) {
-        fondo.setFondoId(fondoId); // Asegurarse de que el ID se establece correctamente
+        fondo.setFondoId(fondoId);
         Fondo updatedFondo = fondoService.save(fondo);
         return ResponseEntity.ok(updatedFondo);
     }
 
-    // Eliminar un fondo
+
     @DeleteMapping("/{fondoId}")
     public ResponseEntity<Void> deleteFondo(@PathVariable Integer fondoId) {
         fondoService.deleteFondo(fondoId);

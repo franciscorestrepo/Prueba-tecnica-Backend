@@ -11,4 +11,7 @@ public class SuscripcionDto {
     private String clienteId;
     private Integer fondoId;
     private Integer tipoNotificacion;
+    private Double valor;
+    private String correo;
+    private String celular;
 }

@@ -24,7 +24,7 @@ public class Transaccion {
     private Integer fondoId;
 
     @DynamoDBAttribute(attributeName = "tipo")
-    private String tipo; // Apertura o Cancelacion
+    private String tipo;
 
     @DynamoDBAttribute(attributeName = "monto")
     private Double monto;

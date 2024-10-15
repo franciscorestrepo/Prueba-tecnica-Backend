@@ -9,9 +9,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class FondoDto {
 
-    private Integer fondoId;      // Identificador único del fondo
-    private String nombre;       // Nombre del fondo
-    private Double montoMinimo;  // Monto mínimo para suscribirse al fondo
-    private String categoria;     // Categoría del fondo
+    private Integer fondoId;
+    private String nombre;
+    private Double montoMinimo;
+    private String categoria;
 
 }

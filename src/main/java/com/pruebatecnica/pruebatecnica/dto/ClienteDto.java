@@ -13,7 +13,5 @@ import java.util.List;
 public class ClienteDto {
     private String clienteId;
     private String nombre;
-  //  private double saldo;
     private List<Transaccion> transacciones;
-
 }
